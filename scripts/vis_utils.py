@@ -6,6 +6,7 @@ def get_point_cloud(depth, rgb, model, camera_id):
     '''
     // cameras https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html
     mjtNum*   cam_pos;              // position rel. to body frame              (ncam x 3)
+    mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
     mjtNum*   cam_fovy;             // y field-of-view (ortho ? len : deg)      (ncam x 1)
     int*      cam_resolution;       // resolution: pixels [width, height]       (ncam x 2)
     float*    cam_intrinsic;        // [focal length; principal point]          (ncam x 4)
@@ -38,20 +39,37 @@ def get_point_cloud(depth, rgb, model, camera_id):
 
     return points, colors
 
-def update_camera_from_keyboard(KEYS_PRESSED, camera_pos, speed=0.01):
+def update_camera_from_keyboard(KEYS_PRESSED, model, camera_pos, camera_id, speed=0.01):
     changed = False
-    if KEYS_PRESSED['w']:  # forward
-        camera_pos[2] += speed
+
+    move_camera_frame = np.array([0.0, 0.0, 0.0]) # global
+
+    if KEYS_PRESSED['p']:  # zoom in (forward)
+        move_camera_frame[2] -= speed
         changed = True
-    if KEYS_PRESSED['s']:  # backward
-        camera_pos[2] -= speed
+    if KEYS_PRESSED['o']:  # zoom out (backward)
+        move_camera_frame[2] += speed
         changed = True
     if KEYS_PRESSED['a']:  # left
-        camera_pos[0] -= speed
+        move_camera_frame[0] -= speed
         changed = True
     if KEYS_PRESSED['d']:  # right
-        camera_pos[0] += speed
+        move_camera_frame[0] += speed
         changed = True
+    if KEYS_PRESSED['w']:  # up
+        move_camera_frame[1] += speed
+        changed = True
+    if KEYS_PRESSED['s']:  # down
+        move_camera_frame[1] -= speed
+        changed = True
+
+    if changed:
+        cam_mat = model.cam_mat0[camera_id].reshape(3, 3) # camera orientation in world frame
+        print(f'camera matrix: {cam_mat}')
+        move_world_frame = cam_mat @ move_camera_frame
+        camera_pos += move_world_frame
+        model.cam_pos[camera_id][:] = camera_pos
+
 
     return camera_pos, changed
 

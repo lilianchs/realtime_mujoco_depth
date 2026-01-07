@@ -39,7 +39,7 @@ vis.add_geometry(pcd)
 
 # background thread: keyboard listener ; https://pynput.readthedocs.io/en/latest/keyboard.html
 # initial keyboard state
-KEYS_PRESSED = {'w': False, 's': False, 'a': False, 'd': False}
+KEYS_PRESSED = {'w': False, 's': False, 'a': False, 'd': False, 'o': False, 'p': False}
 
 def on_press(key):
     if key.char in KEYS_PRESSED:
@@ -71,7 +71,7 @@ running = True
 changed = False
 while running and listener.is_alive():
     # update camdra based on keyboard
-    camera_pos, changed = update_camera_from_keyboard(KEYS_PRESSED, camera_pos)
+    camera_pos, changed = update_camera_from_keyboard(KEYS_PRESSED, model, camera_pos, camera_id)
     model.cam_pos[camera_id][:] = camera_pos
     if changed:
         mujoco.mj_forward(model, data)
