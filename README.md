@@ -1,0 +1,1 @@
+# Work for Task: Keyboard Interface to Visualize Colorized Point Cloud in Open3D
