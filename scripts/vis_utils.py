@@ -1,25 +1,26 @@
-from numpy import np
+import mujoco
+import numpy as np
 
 def get_point_cloud(depth, rgb, model, camera_id):
 
     '''
     // cameras https://mujoco.readthedocs.io/en/stable/APIreference/APItypes.html
     mjtNum*   cam_pos;              // position rel. to body frame              (ncam x 3)
-    mjtNum*   cam_quat;             // orientation rel. to body frame           (ncam x 4)
-    mjtNum*   cam_poscom0;          // global position rel. to sub-com in qpos0 (ncam x 3)
-    mjtNum*   cam_pos0;             // global position rel. to body in qpos0    (ncam x 3)
-    mjtNum*   cam_mat0;             // global orientation in qpos0              (ncam x 9)
-    int*      cam_orthographic;     // orthographic camera; 0: no, 1: yes       (ncam x 1)
     mjtNum*   cam_fovy;             // y field-of-view (ortho ? len : deg)      (ncam x 1)
     int*      cam_resolution;       // resolution: pixels [width, height]       (ncam x 2)
     float*    cam_intrinsic;        // [focal length; principal point]          (ncam x 4)
-    mjtNum*   cam_user;             // user data                                (ncam x nuser_cam)
     '''
-    resolution = model.cam_resolution[camera_id]
-    width, height = resolution[0], resolution[1]
+    height, width = depth.shape 
 
-    intrinsics = model.cam_intrinsic[camera_id * 4:(camera_id + 1) * 4]
-    fx, fy, cx, cy = intrinsics[0], intrinsics[1], intrinsics[2], intrinsics[3]
+    fovy = model.cam_fovy[camera_id]  # vertical FoV in degrees
+    
+    # focal length (pixels)
+    fy = height / (2.0 * np.tan(np.radians(fovy) / 2.0))
+    fx = fy
+    
+    # @ image center (principal point)
+    cx = width / 2.0
+    cy = height / 2.0
 
     # initialize pixel coord grd
     u = np.arange(width)
@@ -28,8 +29,8 @@ def get_point_cloud(depth, rgb, model, camera_id):
 
     # depth -> 3D points w/ cam coords
     z = depth
-    x = (u - cx) * z / f
-    y = (v - cy) * z / f
+    x = (u - cx) * z / fx
+    y = (v - cy) * z / fy
 
     # necessary reshape
     points = np.stack([x, y, z], axis=-1).reshape(-1, 3)
@@ -37,19 +38,22 @@ def get_point_cloud(depth, rgb, model, camera_id):
 
     return points, colors
 
-def update_camera_from_keyboard(KEYS_PRESSED, model, camera_id, camera_pos, speed=0.05):
-
+def update_camera_from_keyboard(KEYS_PRESSED, camera_pos, speed=0.01):
+    changed = False
     if KEYS_PRESSED['w']:  # forward
-        camera_pos[2] -= speed
-    if KEYS_PRESSED['s']:  # backward
         camera_pos[2] += speed
+        changed = True
+    if KEYS_PRESSED['s']:  # backward
+        camera_pos[2] -= speed
+        changed = True
     if KEYS_PRESSED['a']:  # left
         camera_pos[0] -= speed
+        changed = True
     if KEYS_PRESSED['d']:  # right
         camera_pos[0] += speed
-    
-    model.cam_pos[camera_id] = camera_pos # update
-    return camera_pos   
+        changed = True
+
+    return camera_pos, changed
 
 def render_rgbd(renderer, data, camera_id):
     # render using curr camera

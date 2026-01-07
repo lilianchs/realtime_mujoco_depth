@@ -1,3 +1,4 @@
+import cv2
 import mujoco
 import mujoco.viewer
 import open3d as o3d
@@ -22,6 +23,10 @@ print(f"Initial camera position: {camera_pos}")
 renderer = mujoco.Renderer(model)
 mujoco.mj_forward(model, data)
 rgb, depth = render_rgbd(renderer, data, camera_id=camera_id) # initial depth ; https://github.com/google-deepmind/mujoco/blob/main/python/mujoco/renderer.py#L182
+
+# cv2 (rgb visualzation)
+cv2.namedWindow('RGB View', cv2.WINDOW_NORMAL)
+cv2.resizeWindow('RGB View', 640, 480)
 
 # open3d (for depth visualization) ; https://www.open3d.org/docs/latest/python_api/open3d.visualization.Visualizer.html
 vis = o3d.visualization.Visualizer()
@@ -60,31 +65,45 @@ listener = keyboard.Listener(
 listener.start()
 print("Listener Started!")
 
-
 # main loop:
 print("Instructions: W/A/S/D to move camera, ESC to quit")
 running = True
+changed = False
 while running and listener.is_alive():
     # update camdra based on keyboard
-    update_camera_from_keyboard(KEYS_PRESSED, model, camera_id, camera_pos)
+    camera_pos, changed = update_camera_from_keyboard(KEYS_PRESSED, camera_pos)
+    model.cam_pos[camera_id][:] = camera_pos
+    if changed:
+        mujoco.mj_forward(model, data)
     
     # render point cloud 
     rgb, depth = render_rgbd(renderer, data, camera_id=camera_id)
-    points, colors = get_point_cloud(depth, model, camera_id)
+    points, colors = get_point_cloud(depth, rgb, model, camera_id)
     
     # Open3D vis
     pcd.points = o3d.utility.Vector3dVector(points) # https://www.open3d.org/docs/latest/python_api/open3d.utility.Vector3dVector.html
     pcd.colors = o3d.utility.Vector3dVector(colors)
     vis.update_geometry(pcd)
+
+    # rgb vis
+    rgb_bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
+    cv2.imshow('RGB View', rgb_bgr)
     
     # refresh window
     vis.poll_events()
     vis.update_renderer()
+
+    # cv2 needs handling
+    key = cv2.waitKey(1)
+    if key == 27:  # ESC key
+        running = False
     
     if not vis.poll_events():
         running = False
+    
 
 # clean
 vis.destroy_window()
+cv2.destroyAllWindows()
 listener.stop()
 print("Done...!")
